@@ -10,7 +10,7 @@ class DatabaseManager:
         self._ensure_dir_exists()
         self.init_db()
 
-    def _ensure_dir_exists() -> None:
+    def _ensure_dir_exists(self) -> None:
         """Create parent directory if it does not exist (e.g., /var/data)."""
         dirname = os.path.dirname(os.path.abspath(self.db_path))
         if dirname and not os.path.exists(dirname):
