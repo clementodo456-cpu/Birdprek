@@ -211,7 +211,7 @@ async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     text = f"📋 <b>Registered Users ({len(users)}):</b>\n\n"
-    for u in users[:25]: # Display first 25 users to avoid payload limit
+    for u in users[:25]:
         sub = "🟢" if u["is_subscribed"] else "🔴"
         text += f"{sub} <b>{u['first_name']}</b> (@{u['username'] or 'N/A'}) - ID: <code>{u['user_id']}</code>\n"
 
@@ -309,7 +309,6 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         selected_time = data.split(":")[1]
         db.update_delivery_time(user.id, selected_time)
 
-        # Refresh schedule if active
         if user_data.get("is_subscribed", 1):
             schedule_user_daily_job(user.id, selected_time, user_data.get("timezone", "UTC"), context.application)
 
@@ -354,14 +353,34 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error("Exception while handling an update:", exc_info=context.error)
 
+# ----------------- Lifecycle Hooks ----------------- #
+
+async def post_init(app: Application) -> None:
+    """Start APScheduler inside the running event loop."""
+    scheduler.start()
+    restore_all_scheduled_jobs(app)
+    logger.info("Scheduler started and jobs restored successfully.")
+
+async def post_shutdown(app: Application) -> None:
+    """Cleanly shut down APScheduler on application exit."""
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
+        logger.info("Scheduler shut down gracefully.")
+
 # ----------------- Application Entrypoint ----------------- #
 
 def main() -> None:
     """Initialize and run the bot."""
     logger.info("Initializing Daily Motivation Bot...")
 
-    # Build PTB Application
-    app = Application.builder().token(BOT_TOKEN).build()
+    # Build PTB Application with lifecycle callbacks
+    app = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .post_init(post_init)
+        .post_shutdown(post_shutdown)
+        .build()
+    )
 
     # Register Handlers
     app.add_handler(CommandHandler("start", start_command))
@@ -383,12 +402,6 @@ def main() -> None:
 
     # Global Error Handler
     app.add_error_handler(error_handler)
-
-    # Start APScheduler
-    scheduler.start()
-
-    # Restore Scheduled Jobs from Database
-    restore_all_scheduled_jobs(app)
 
     logger.info("Bot is active and listening for updates...")
     app.run_polling(drop_pending_updates=True)
