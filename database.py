@@ -1,3 +1,4 @@
+import os
 import sqlite3
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Tuple
@@ -6,9 +7,21 @@ from config import DATABASE_PATH, logger
 class DatabaseManager:
     def __init__(self, db_path: str = DATABASE_PATH):
         self.db_path = db_path
+        self._ensure_dir_exists()
         self.init_db()
 
+    def _ensure_dir_exists() -> None:
+        """Create parent directory if it does not exist (e.g., /var/data)."""
+        dirname = os.path.dirname(os.path.abspath(self.db_path))
+        if dirname and not os.path.exists(dirname):
+            try:
+                os.makedirs(dirname, exist_ok=True)
+                logger.info(f"Created database directory at: {dirname}")
+            except Exception as e:
+                logger.error(f"Could not create database directory {dirname}: {e}")
+
     def _get_connection(self) -> sqlite3.Connection:
+        self._ensure_dir_exists()
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         return conn
